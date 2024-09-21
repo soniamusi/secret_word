@@ -18,6 +18,8 @@ const stages = [
   { id: 3, name: "end" },
 ];
 
+const guessesQty = 3;
+
 function App() {
   const [gameStage, setGameStage] = useState(stages[0].name);
   const [words] = useState(wordList);
@@ -26,13 +28,19 @@ function App() {
   const [pickedCategory, setPickedCategory] = useState("");
   const [letters, setLetters] = useState([]);
 
-  const pickWordAndPickCategory = () => {
+  const [guessedLetters, setGuessedLetters] = useState([]);
+  const [wrongLetters, setWrongLetters] = useState([]);
+
+  const [guesses, setGuesses] = useState(guessesQty);
+  const [score, setScore] = useState(0);
+
+  const pickWordAndPickCategory = useCallback(() => {
     //pick a random category
     const categories = Object.keys(words);
     const category =
       categories[Math.floor(Math.random() * Object.keys(categories).length)];
 
-    console.log(category);
+    //console.log(category);
 
     //pick a random word
     const word =
@@ -40,10 +48,13 @@ function App() {
     console.log(word);
 
     return { word, category };
-  };
+  }, [words]);
 
   //starts the scret word game
-  const startGame = () => {
+  const startGame = useCallback(() => {
+    //clear all letter
+    clearLetterSates();
+
     //pick word and pick category
     const { word, category } = pickWordAndPickCategory();
 
@@ -52,32 +63,98 @@ function App() {
 
     wordLetters = wordLetters.map((l) => l.toLowerCase());
 
-    console.log(word, category);
-    console.log(wordLetters);
+    // console.log(word, category);
+    //console.log(wordLetters);
 
     //fill states
     setPickedWord(word);
     setPickedCategory(category);
-    setLetters(letters);
+    setLetters(wordLetters);
 
     setGameStage(stages[1].name);
-  };
+  }, [pickWordAndPickCategory]);
 
   // process the letter input
-  const verifyLetter = () => {
-    setGameStage(stages[2].name);
+  const verifyLetter = (letter) => {
+    //setGameStage(stages[2].name);
+    const normalizedLetter = letter.toLowerCase();
+
+    //check if letter has already been utilized
+    if (
+      guessedLetters.includes(normalizedLetter) ||
+      wrongLetters.includes(normalizedLetter)
+    ) {
+      return;
+    }
+
+    // push guessed letter or remove a guess
+    if (letters.includes(normalizedLetter)) {
+      setGuessedLetters((actualGuessedLetters) => [
+        ...actualGuessedLetters,
+        normalizedLetter,
+      ]);
+    } else {
+      setWrongLetters((actualWrongLetters) => [
+        ...actualWrongLetters,
+        normalizedLetter,
+      ]);
+
+      setGuesses((actualGuesses) => actualGuesses - 1);
+    }
   };
 
-  //restarts the game
+  const clearLetterSates = () => {
+    setGuessedLetters([]);
+    setWrongLetters([]);
+  };
+
+  useEffect(() => {
+    if (guesses <= 0) {
+      clearLetterSates();
+
+      //reset all states
+      setGameStage(stages[2].name);
+    }
+  }, [guesses]);
+
+  //check win condition
+  useEffect(() => {
+    const uniqueLetters = [...new Set(letters)];
+
+    //Win condition
+    if (guessedLetters.length === uniqueLetters.length) {
+      //add score
+      setScore((actualScore) => (actualScore += 100));
+
+      //restart game with new word
+      startGame();
+    }
+  }, [guessedLetters, letters, startGame]);
+
+  //restart the game
   const retry = () => {
+    setScore(0);
+    setGuesses(guessesQty);
+
     setGameStage(stages[0].name);
   };
 
   return (
     <div className="App">
       {gameStage === "start" && <StartScreen startGame={startGame} />}
-      {gameStage === "game" && <Game verifyLetter={verifyLetter} />}
-      {gameStage === "end" && <GameOver retry={retry} />}
+      {gameStage === "game" && (
+        <Game
+          verifyLetter={verifyLetter}
+          setPickedWord={pickedWord}
+          pickedCategory={pickedCategory}
+          letters={letters}
+          guessedLetters={guessedLetters}
+          wrongLetters={wrongLetters}
+          guesses={guesses}
+          score={score}
+        />
+      )}
+      {gameStage === "end" && <GameOver retry={retry} score={score} />}
     </div>
   );
 }
